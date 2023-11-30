@@ -1,18 +1,20 @@
-import fetch from 'node-fetch';
-import fs from 'fs';
+import { createReadStream } from 'fs';
 import csv from 'csv-parser';
+import { createObjectCsvWriter as createCsvWriter } from 'csv-writer';
 
 const args = process.argv.slice(2);
-const filePath = args[0];
+const inputFilePath = args[0];
+const outputFilePath = inputFilePath.replace('.csv', '_updated_deps.csv');
 
-if (!filePath) {
+if (!inputFilePath) {
     console.log("Please provide a file path.");
     process.exit(1);
 }
 
-let packageList = [];
+let packages = []; // Array to store package data
 
-// Function to get the latest version of a package from npm
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
 async function getLatestVersion(packageName) {
   try {
     const response = await fetch(`https://registry.npmjs.org/${packageName}`);
@@ -27,16 +29,32 @@ async function getLatestVersion(packageName) {
   }
 }
 
-// Read package names from the provided file path
-fs.createReadStream(filePath)
+createReadStream(inputFilePath)
   .pipe(csv())
   .on('data', (row) => {
-    packageList.push(row.package);
+    packages.push({ package: row.package, oldVersion: row['old-version'], newVersion: '' });
   })
   .on('end', async () => {
     console.log('CSV file successfully processed');
-    for (const packageName of packageList) {
-      const latestVersion = await getLatestVersion(packageName);
-      console.log(`Latest version of ${packageName} is ${latestVersion}`);
+    for (const pkg of packages) {
+      pkg.newVersion = await getLatestVersion(pkg.package);
+      console.log(`Latest version of ${pkg.package} is ${pkg.newVersion}`);
     }
+    writeUpdatedCsv();
   });
+
+function writeUpdatedCsv() {
+  const csvWriter = createCsvWriter({
+    path: outputFilePath,
+    header: [
+      {id: 'package', title: 'Package'},
+      {id: 'oldVersion', title: 'Old-Version'},
+      {id: 'newVersion', title: 'New-Version'}
+    ]
+  });
+
+  csvWriter.writeRecords(packages)
+    .then(() => {
+      console.log('New CSV file written successfully');
+    });
+}
