@@ -1,12 +1,11 @@
 import { createReadStream } from 'fs';
 import csv from 'csv-parser';
-import { createObjectCsvWriter as createCsvWriter } from 'csv-writer';
+import { createObjectCsvWriter } from 'csv-writer';
 
 const args = process.argv.slice(2);
-const inputFilePath = args[0];
-const outputFilePath = inputFilePath.replace('.csv', '_updated_deps.csv');
+const filePath = args[0];
 
-if (!inputFilePath) {
+if (!filePath) {
     console.log("Please provide a file path.");
     process.exit(1);
 }
@@ -29,10 +28,10 @@ async function getLatestVersion(packageName) {
   }
 }
 
-createReadStream(inputFilePath)
+createReadStream(filePath)
   .pipe(csv())
   .on('data', (row) => {
-    packages.push({ package: row.package, oldVersion: row['old-version'], newVersion: '' });
+    packages.push({ package: row.package, oldVersion: row['Old-Version'], newVersion: row['New-Version'] });
   })
   .on('end', async () => {
     console.log('CSV file successfully processed');
@@ -44,17 +43,18 @@ createReadStream(inputFilePath)
   });
 
 function writeUpdatedCsv() {
-  const csvWriter = createCsvWriter({
-    path: outputFilePath,
+  const csvWriter = createObjectCsvWriter({
+    path: filePath,
     header: [
-      {id: 'package', title: 'Package'},
-      {id: 'oldVersion', title: 'Old-Version'},
-      {id: 'newVersion', title: 'New-Version'}
-    ]
+      {id: 'package', title: 'package'},
+      {id: 'oldVersion', title: 'old-version'},
+      {id: 'newVersion', title: 'new-version'}
+    ],
+    append: false
   });
 
   csvWriter.writeRecords(packages)
     .then(() => {
-      console.log('New CSV file written successfully');
+      console.log('CSV file updated successfully');
     });
 }
